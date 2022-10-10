@@ -62,7 +62,17 @@ var (
 	asn1TlsWebClientAuth = []byte{48, 10, 6, 8, 43, 6, 1, 5, 5, 7, 3, 2}
 )
 
-// Service represents a thin API to handle required operations of EST7030
+// Service represents a thin API to handle required operations of EST7030.
+// This service implements the required parts of EST. Specifically:
+//
+//	"cas" - Section 4.1
+//	"enroll" and "reenroll" - Section 4.2
+//
+// Optional APIs are not implemented including:
+//
+//	4.3 - cmc
+//	4.4 - server side key generation
+//	4.5 - CSR attributes
 type Service struct {
 	// Root CA for a Factory
 	rootCa *x509.Certificate
@@ -146,7 +156,7 @@ func (s Service) ReEnroll(ctx context.Context, csrBytes []byte, curCert *x509.Ce
 
 // loadCsr parses the certifcate signing request based on rules of
 // https://www.rfc-editor.org/rfc/rfc7030.html#section-4.2.1
-//  * content is a base64 encoded certificate signing request
+//   - content is a base64 encoded certificate signing request
 func (s Service) loadCsr(ctx context.Context, bytes []byte) (*x509.CertificateRequest, error) {
 	bytes, err := base64.StdEncoding.DecodeString(string(bytes))
 	log := CtxGetLog(ctx)
