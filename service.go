@@ -5,7 +5,10 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/asn1"
+	"encoding/base64"
 	"errors"
+
+	"go.mozilla.org/pkcs7"
 )
 
 var (
@@ -74,7 +77,11 @@ func NewService(rootCa *x509.Certificate, ca *x509.Certificate, key crypto.Signe
 // CaCerts return the CA certificate as per:
 // https://www.rfc-editor.org/rfc/rfc7030.html#section-4.1.2
 func (s Service) CaCerts(ctx context.Context) ([]byte, error) {
-	panic("not implemented")
+	bytes, err := pkcs7.DegenerateCertificate(s.rootCa.Raw)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(base64.StdEncoding.EncodeToString(bytes)), nil
 }
 
 // Enroll perform EST7030 enrollment operation as per
