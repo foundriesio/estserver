@@ -160,3 +160,39 @@ func TestService_Enroll(t *testing.T) {
 	cert := p7.Certificates[0]
 	require.Equal(t, cn, cert.Subject.CommonName)
 }
+
+func TestService_ReEnroll(t *testing.T) {
+	log := InitLogger("")
+	ctx := CtxWithLog(context.TODO(), log)
+
+	cn := random.String(12)
+	curCert := &x509.Certificate{
+		SerialNumber: big.NewInt(2019),
+		Subject: pkix.Name{
+			CommonName: cn,
+		},
+	}
+
+	s := createService(t)
+	_, csrBytes := createB64CsrDer(t, cn)
+	// curCert has not subject yet (it's not signed):
+	_, err := s.ReEnroll(ctx, csrBytes, curCert)
+	require.Equal(t, ErrSubjectMismatch, err)
+
+	// Now create the cert:
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.Nil(t, err)
+	der, err := x509.CreateCertificate(rand.Reader, curCert, curCert, &key.PublicKey, key)
+	require.Nil(t, err)
+	curCert, err = x509.ParseCertificate(der)
+	require.Nil(t, err)
+
+	bytes, err := s.ReEnroll(ctx, csrBytes, curCert)
+	require.Nil(t, err)
+	bytes, err = base64.StdEncoding.DecodeString(string(bytes))
+	require.Nil(t, err)
+	p7, err := pkcs7.Parse(bytes)
+	require.Nil(t, err)
+	cert := p7.Certificates[0]
+	require.Equal(t, cn, cert.Subject.CommonName)
+}

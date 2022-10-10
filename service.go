@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base64"
 	"errors"
@@ -104,7 +105,43 @@ func (s Service) Enroll(ctx context.Context, csrBytes []byte) ([]byte, error) {
 // https://www.rfc-editor.org/rfc/rfc7030.html#section-4.2.2
 // Errors can be generic errors or of the type EstError
 func (s Service) ReEnroll(ctx context.Context, csrBytes []byte, curCert *x509.Certificate) ([]byte, error) {
-	panic("not implemented")
+	log := CtxGetLog(ctx)
+	csr, err := s.loadCsr(ctx, csrBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	if !bytes.Equal(csr.RawSubject, curCert.RawSubject) {
+		log.Warn().
+			Str("current-subject", curCert.Subject.String()).
+			Str("requests-subject", csr.Subject.String()).
+			Msg("Subject name mismatch")
+		return nil, ErrSubjectMismatch
+	}
+
+	var csrSAN pkix.Extension
+	var certSAN pkix.Extension
+	for _, ext := range csr.Extensions {
+		if ext.Id.Equal(oidSubjectAltName) {
+			csrSAN = ext
+			break
+		}
+	}
+	for _, ext := range curCert.Extensions {
+		if ext.Id.Equal(oidSubjectAltName) {
+			certSAN = ext
+			break
+		}
+	}
+	if !bytes.Equal(csrSAN.Value, certSAN.Value) {
+		return nil, ErrSubjectAltNameMismatch
+	}
+
+	// TODO: Should we allow this:
+	//   "The ChangeSubjectName attribute, as defined in [RFC6402], MAY be included
+	//   in the CSR to request that these fields be changed in the new certificate."
+	// Parts of the subject like dn,ou, and businessCategory=production *can't* be altered
+	return s.signCsr(ctx, csr)
 }
 
 // loadCsr parses the certifcate signing request based on rules of
