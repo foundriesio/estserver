@@ -1,0 +1,39 @@
+name: unit-tests
+on:
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.18
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Unit test
+        run: go test -v ./...
+  
+  formatter:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.18
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Formatter
+        run: |
+          output=$(gofmt -s -d .)
+          if [ -n "$output" ] ; then
+            echo "$output"
+            exit 1
+          fi
+
+  linter:
+    runs-on: ubuntu-latest
+    container:
+      image: golangci/golangci-lint:v1.49
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Linter
+        run: golangci-lint run ./
