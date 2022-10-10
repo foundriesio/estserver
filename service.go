@@ -1,12 +1,17 @@
 package est
 
 import (
+	"bytes"
 	"context"
 	"crypto"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"math/big"
+	"time"
 
 	"go.mozilla.org/pkcs7"
 )
@@ -88,7 +93,11 @@ func (s Service) CaCerts(ctx context.Context) ([]byte, error) {
 // https://www.rfc-editor.org/rfc/rfc7030.html#section-4.2.1
 // Errors can be generic errors or of the type EstError
 func (s Service) Enroll(ctx context.Context, csrBytes []byte) ([]byte, error) {
-	panic("not implemented")
+	csr, err := s.loadCsr(ctx, csrBytes)
+	if err != nil {
+		return nil, err
+	}
+	return s.signCsr(ctx, csr)
 }
 
 // ReEnroll perform EST7030 enrollment operation as per
@@ -96,4 +105,102 @@ func (s Service) Enroll(ctx context.Context, csrBytes []byte) ([]byte, error) {
 // Errors can be generic errors or of the type EstError
 func (s Service) ReEnroll(ctx context.Context, csrBytes []byte, curCert *x509.Certificate) ([]byte, error) {
 	panic("not implemented")
+}
+
+// loadCsr parses the certifcate signing request based on rules of
+// https://www.rfc-editor.org/rfc/rfc7030.html#section-4.2.1
+//  * content is a base64 encoded certificate signing request
+func (s Service) loadCsr(ctx context.Context, bytes []byte) (*x509.CertificateRequest, error) {
+	bytes, err := base64.StdEncoding.DecodeString(string(bytes))
+	log := CtxGetLog(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Unable to decode base64 data")
+		return nil, fmt.Errorf("%w: %s", ErrInvalidBase64, err)
+	}
+	csr, err := x509.ParseCertificateRequest(bytes)
+	if err != nil {
+		log.Error().Err(err).Msg("Unable to parse CSR")
+		return nil, fmt.Errorf("%w: %s", ErrInvalidCsr, err)
+	}
+	if err = csr.CheckSignature(); err != nil {
+		log.Error().Err(err).Msg("Invalid CSR Signature")
+		return nil, fmt.Errorf("%w: %s", ErrInvalidCsrSignature, err)
+	}
+	return csr, nil
+}
+
+// signCsr returns a base64 PCKS7 encoded certificate as per
+// https://www.rfc-editor.org/rfc/rfc7030.html#section-4.1.3
+func (s Service) signCsr(ctx context.Context, csr *x509.CertificateRequest) ([]byte, error) {
+	log := CtxGetLog(ctx)
+	if s.ca.SignatureAlgorithm != csr.SignatureAlgorithm {
+		return nil, ErrInvalidSignatureAlgorithm
+	}
+
+	sn, err := rand.Int(rand.Reader, big.NewInt(1).Exp(big.NewInt(2), big.NewInt(128), nil))
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	notAfter := now.Add(time.Hour * 24 * 365)
+	if notAfter.After(s.ca.NotAfter) {
+		log.Warn().Msg("Adjusting default cert expiry")
+		notAfter = s.ca.NotAfter
+	}
+
+	// This deviates from 4.2.1, but we limit the extensions and not allow
+	// clients to create CAs
+	var ku x509.KeyUsage
+	var eku []x509.ExtKeyUsage
+	for _, e := range csr.Extensions {
+		if e.Id.Equal(oidKeyUsage) {
+			if !bytes.Equal(e.Value, asn1DigitalSignature) {
+				log.Error().Bytes("Value", e.Value).Msg("Unsupported CSR KeyUsage options")
+				return nil, fmt.Errorf("%w: Unsupported CSR KeyUsage value", ErrInvalidCsr)
+			}
+			ku |= x509.KeyUsageDigitalSignature
+		} else if e.Id.Equal(oidExtendedKeyUsage) {
+			if !bytes.Equal(e.Value, asn1TlsWebClientAuth) {
+				log.Error().Bytes("Value", e.Value).Msg("Unsupported CSR ExtendedKeyUsage options")
+				return nil, fmt.Errorf("%w: Unsupported CSR ExtendedKeyUsage value", ErrInvalidCsr)
+			}
+			eku = append(eku, x509.ExtKeyUsageClientAuth)
+		} else {
+			log.Error().Str("OID", e.Id.String()).Msg("Unsupported CSR Extension")
+		}
+	}
+
+	var tmpl = &x509.Certificate{
+		SerialNumber:          sn,
+		NotBefore:             now,
+		NotAfter:              notAfter,
+		RawSubject:            csr.RawSubject,
+		Signature:             csr.Signature,
+		SignatureAlgorithm:    csr.SignatureAlgorithm,
+		PublicKeyAlgorithm:    csr.PublicKeyAlgorithm,
+		Issuer:                s.ca.Subject,
+		PublicKey:             csr.PublicKey,
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+		KeyUsage:              ku,
+		ExtKeyUsage:           eku,
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, s.ca, csr.PublicKey, s.key)
+	if err != nil {
+		log.Error().Err(err).Msg("Unable to create new certificate")
+		return nil, err
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		log.Error().Err(err).Msg("Unable to parse created certificate")
+		return nil, err
+	}
+	bytes, err := pkcs7.DegenerateCertificate(cert.Raw)
+	if err != nil {
+		log.Error().Err(err).Msg("Unable to PKCS7 encode certificate")
+		return nil, err
+	}
+	return []byte(base64.StdEncoding.EncodeToString(bytes)), nil
 }
