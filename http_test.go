@@ -132,6 +132,51 @@ func TestSimpleEnroll(t *testing.T) {
 	})
 }
 
+func TestSimpleReEnrollChecksSubject(t *testing.T) {
+	WithEstServer(t, func(tc testClient) {
+		cn := random.String(8)
+		kp := tc.svc.createTlsKP(t, tc.ctx, cn)
+		rc, data := tc.POST(t, "/.well-known/est/simplereenroll", []byte{}, kp)
+		require.Equal(t, 400, rc, string(data))
+		require.Equal(t, "The CSR could not be decoded: asn1: syntax error: sequence truncated", string(data))
+
+		_, csr := createB64CsrDer(t, cn+"1")
+		rc, data = tc.POST(t, "/.well-known/est/simplereenroll", csr, kp)
+		require.Equal(t, 400, rc, string(data))
+		require.Equal(t, ErrSubjectMismatch.Error(), string(data))
+	})
+}
+
+func TestSimpleReEnroll(t *testing.T) {
+	WithEstServer(t, func(tc testClient) {
+		cn := random.String(9)
+		kp := tc.svc.createTlsKP(t, tc.ctx, cn)
+		rc, data := tc.POST(t, "/.well-known/est/simpleenroll", []byte{}, kp)
+		require.Equal(t, 400, rc, string(data))
+		require.Equal(t, "The CSR could not be decoded: asn1: syntax error: sequence truncated", string(data))
+
+		newkey, csr := createB64CsrDer(t, cn)
+		rc, data = tc.POST(t, "/.well-known/est/simplereenroll", csr, kp)
+		require.Equal(t, 201, rc, string(data))
+
+		buf, err := base64.StdEncoding.DecodeString(string(data))
+		require.Nil(t, err)
+		p7, err := pkcs7.Parse(buf)
+		require.Nil(t, err)
+		cert := p7.Certificates[0]
+		require.Equal(t, cn, cert.Subject.CommonName)
+
+		// Now make sure this cert can authenticate to prove its valid
+		kp = &tls.Certificate{
+			Certificate: [][]byte{cert.Raw},
+			PrivateKey:  newkey,
+		}
+
+		rc, data = tc.POST(t, "/.well-known/est/simplereenroll", csr, kp)
+		require.Equal(t, 201, rc, string(data))
+	})
+}
+
 func (s Service) createTlsKP(t *testing.T, ctx context.Context, cn string) *tls.Certificate {
 	key, csrBytes := createB64CsrDer(t, cn)
 	bytes, err := s.Enroll(ctx, csrBytes)

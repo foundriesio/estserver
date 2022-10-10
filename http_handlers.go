@@ -32,6 +32,22 @@ func RegisterEchoHandlers(svc Service, e *echo.Echo) {
 		}
 		return c.Blob(http.StatusCreated, "application/pkcs7-mime", bytes)
 	})
+	e.POST("/.well-known/est/simplereenroll", func(c echo.Context) error {
+		bytes, err := validateRequest(svc, c)
+		if err != nil {
+			return err
+		}
+		peerCerts := c.Request().TLS.PeerCertificates
+		bytes, err = svc.ReEnroll(c.Request().Context(), bytes, peerCerts[0])
+		if err != nil {
+			if errors.Is(err, EstError) {
+				return c.String(http.StatusBadRequest, err.Error())
+			}
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+		return c.Blob(http.StatusCreated, "application/pkcs7-mime", bytes)
+	})
+
 }
 
 // validateRequest checks that the client has provided a client cert (via mTLS)
