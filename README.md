@@ -29,7 +29,17 @@ The simple "standalone" server can be built with:
 
 ## Using
 
-TODO - how to generate TLS cert and CA
+TLS certificates for the server can be generate by using the helper script
+`contrib/mk-tls-keypair.sh`. Your factory's PKI directory  was generated
+with a `create_ca` script. Once a CA is created, you can upload/authorize
+it with:
+```
+ $ fioctl keys ca show --just-device-cas > /tmp/cas.pem
+ $ cat <new-ca.pem> >> /tmp/cas.pem
+ $ fioctl keys ca update /tmp/cas.pem
+```
+
+Then run the server with:
 ```
 $ ./bin/estserver \
     -root-cert <pkidir>/factory_ca.pem \
