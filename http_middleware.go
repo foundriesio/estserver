@@ -24,6 +24,17 @@ func accessLog(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 		res.Header().Set(echo.HeaderXRequestID, rid)
 		log = log.With().Str("req_id", rid).Str("uri", req.RequestURI).Logger()
+		if len(c.Request().TLS.PeerCertificates) == 1 {
+			cert := c.Request().TLS.PeerCertificates[0]
+			factory := ""
+			if len(cert.Subject.OrganizationalUnit) > 0 {
+				factory = cert.Subject.OrganizationalUnit[0]
+			}
+			log = log.With().
+				Str("factory", factory).
+				Str("device", cert.Subject.CommonName).
+				Logger()
+		}
 		ctx = CtxWithLog(ctx, log)
 		c.SetRequest(req.WithContext(ctx))
 
