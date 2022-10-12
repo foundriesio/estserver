@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"math/big"
@@ -249,5 +250,21 @@ func (s Service) signCsr(ctx context.Context, csr *x509.CertificateRequest) ([]b
 		log.Error().Err(err).Msg("Unable to PKCS7 encode certificate")
 		return nil, err
 	}
+	log.Info().
+		Str("newpubkey", pubkey(cert)).
+		Time("expires", cert.NotAfter).
+		Msg("New cert issued")
 	return []byte(base64.StdEncoding.EncodeToString(bytes)), nil
+}
+
+func pubkey(cert *x509.Certificate) string {
+	derBytes, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+	if err != nil {
+		return ""
+	}
+	block := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: derBytes,
+	}
+	return string(pem.EncodeToMemory(block))
 }
