@@ -90,7 +90,7 @@ func main() {
 	}
 	est.RegisterEchoHandlers(svc, e)
 
-	if err := e.StartServer(&s); err != http.ErrServerClosed {
+	if err = est.RunGracefully(ctx, &s, e); err != nil {
 		log.Fatal().Err(err).Msg("Unable to run server")
 	}
 }
