@@ -30,14 +30,8 @@ The simple "standalone" server can be built with:
 ## Using
 
 TLS certificates for the server can be generate by using the helper script
-`contrib/mk-tls-keypair.sh`. Your factory's PKI directory  was generated
-with a `create_ca` script. Once a CA is created, you can upload/authorize
-it with:
-```
- $ fioctl keys ca show --just-device-cas > /tmp/cas.pem
- $ cat <new-ca.pem> >> /tmp/cas.pem
- $ fioctl keys ca update /tmp/cas.pem
-```
+`contrib/mk-tls-keypair.sh`. The `<pki-dir>` parameter is your factory's PKI directory that was generated
+by `fioctl keys ca create` command. See [Managing Factory PKI](https://docs.foundries.io/latest/reference-manual/security/device-gateway.html#managing-factory-pki) for more details.
 
 Then run the server with:
 ```
@@ -47,6 +41,13 @@ $ ./bin/estserver \
     -tls-key <pkidir>/local-tls.key \
     -ca-cert <pkidir>/local-ca.pem  \
     -ca-key <pkidir>/local-ca.key \
+```
+
+TODO: add details on the API usage by means of command line utilities (openssl, curl, etc).
+For example, how to succeed with this call
+```
+curl -X POST --cert client.pem --key pkey.pem --cacert root.crt https://msul-ota:8443/.well-known/est/simplereenroll
+Invalid content-type: . Must be application/pkcs10The CSR could not be decoded: asn1: syntax error: sequence truncated
 ```
 
 TODO - point to fioconfig once implementation is merged
