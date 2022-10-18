@@ -4,7 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
+)
+
+var (
+	errNoCerts = errors.New("Unable to find certs for this server")
 )
 
 // TlsCerts represents the Server TLS keypair to advertise and CA roots we trust
@@ -19,7 +24,7 @@ type TlsCerts struct {
 type TlsCertHandler interface {
 	Init(ctx context.Context) error
 	Get(ctx context.Context, serverName string) (*TlsCerts, error)
-	VerifyConnection(certs *TlsCerts, conn tls.ConnectionState) error
+	VerifyConnection(ctx context.Context, certs *TlsCerts, conn tls.ConnectionState) error
 }
 
 // Apply the TlsCertHandler logic to the tlsConfig
@@ -49,6 +54,9 @@ func getConfigForClient(tlsConfig *tls.Config, handler TlsCertHandler, helloInfo
 	if err != nil {
 		return nil, err
 	}
+	if certs == nil {
+		return nil, errNoCerts
+	}
 
 	cfg := &tls.Config{
 		Certificates: []tls.Certificate{*certs.Server},
@@ -57,7 +65,7 @@ func getConfigForClient(tlsConfig *tls.Config, handler TlsCertHandler, helloInfo
 		// We don't use the session resumption, save some CPU ticks on generating a secure ticket.
 		SessionTicketsDisabled: true,
 		VerifyConnection: func(con tls.ConnectionState) error {
-			return handler.VerifyConnection(certs, con)
+			return handler.VerifyConnection(ctx, certs, con)
 		},
 	}
 	return cfg, nil

@@ -21,6 +21,6 @@ func (h staticHandler) Get(ctx context.Context, serverName string) (*TlsCerts, e
 	return h.certs, nil
 }
 
-func (h staticHandler) VerifyConnection(certs *TlsCerts, conn tls.ConnectionState) error {
+func (h staticHandler) VerifyConnection(ctx context.Context, certs *TlsCerts, conn tls.ConnectionState) error {
 	return nil
 }
