@@ -73,7 +73,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Unable to create tls cert handler")
 	}
 
-	svc := est.NewService(rootCert, caCert, caKey)
+	svcHandler := est.NewStaticServiceHandler(est.NewService(rootCert, caCert, caKey))
 
 	e := echo.New()
 	s := http.Server{
@@ -88,7 +88,7 @@ func main() {
 	if err = est.ApplyTlsCertHandler(s.TLSConfig, tlsHandler); err != nil {
 		log.Fatal().Err(err).Msg("Unable to configure TLS handler")
 	}
-	est.RegisterEchoHandlers(svc, e)
+	est.RegisterEchoHandlers(svcHandler, e)
 
 	if err = est.RunGracefully(ctx, &s, e); err != nil {
 		log.Fatal().Err(err).Msg("Unable to run server")

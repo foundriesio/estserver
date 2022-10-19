@@ -62,6 +62,22 @@ var (
 	asn1TlsWebClientAuth = []byte{48, 10, 6, 8, 43, 6, 1, 5, 5, 7, 3, 2}
 )
 
+type ServiceHandler interface {
+	GetService(ctx context.Context, serverName string) (Service, error)
+}
+
+type staticSvcHandler struct {
+	Service
+}
+
+func (s staticSvcHandler) GetService(ctx context.Context, serverName string) (Service, error) {
+	return s.Service, nil
+}
+
+func NewStaticServiceHandler(svc Service) ServiceHandler {
+	return &staticSvcHandler{svc}
+}
+
 // Service represents a thin API to handle required operations of EST7030.
 // This service implements the required parts of EST. Specifically:
 //

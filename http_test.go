@@ -52,7 +52,7 @@ func (tc testClient) POST(t *testing.T, resource string, data []byte, cert *tls.
 func WithEstServer(t *testing.T, testFunc func(tc testClient)) {
 	svc := createService(t)
 	e := echo.New()
-	RegisterEchoHandlers(svc, e)
+	RegisterEchoHandlers(NewStaticServiceHandler(svc), e)
 
 	ctx := CtxWithLog(context.TODO(), InitLogger(""))
 	srv := httptest.NewUnstartedServer(e)

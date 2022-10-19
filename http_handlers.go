@@ -9,9 +9,13 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func RegisterEchoHandlers(svc Service, e *echo.Echo) {
+func RegisterEchoHandlers(svcHandler ServiceHandler, e *echo.Echo) {
 	e.Use(accessLog)
 	e.GET("/.well-known/est/cacerts", func(c echo.Context) error {
+		svc, err := svcHandler.GetService(c.Request().Context(), c.Request().TLS.ServerName)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
 		certs, err := svc.CaCerts(c.Request().Context())
 		if err != nil {
 			return c.String(http.StatusInternalServerError, err.Error())
@@ -19,6 +23,10 @@ func RegisterEchoHandlers(svc Service, e *echo.Echo) {
 		return c.Blob(200, "application/pkcs7-mime", certs)
 	})
 	e.POST("/.well-known/est/simpleenroll", func(c echo.Context) error {
+		svc, err := svcHandler.GetService(c.Request().Context(), c.Request().TLS.ServerName)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
 		bytes, err := validateRequest(svc, c)
 		if err != nil {
 			return err
@@ -33,6 +41,10 @@ func RegisterEchoHandlers(svc Service, e *echo.Echo) {
 		return c.Blob(http.StatusCreated, "application/pkcs7-mime", bytes)
 	})
 	e.POST("/.well-known/est/simplereenroll", func(c echo.Context) error {
+		svc, err := svcHandler.GetService(c.Request().Context(), c.Request().TLS.ServerName)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
 		bytes, err := validateRequest(svc, c)
 		if err != nil {
 			return err
