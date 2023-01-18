@@ -96,14 +96,7 @@ func main() {
 }
 
 func loadCert(log zerolog.Logger, fileName string) *x509.Certificate {
-	bytes, err := os.ReadFile(fileName)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Can't read certificate")
-	}
-	block, extra := pem.Decode(bytes)
-	if extra != nil && len(extra) > 0 {
-		log.Fatal().Msgf("Can't parse CA key file. Extra bytes: %s", string(extra))
-	}
+	block := loadPem(log, fileName)
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Can't parse certificate")
@@ -112,17 +105,22 @@ func loadCert(log zerolog.Logger, fileName string) *x509.Certificate {
 }
 
 func loadKey(log zerolog.Logger, keyFile string) *ecdsa.PrivateKey {
-	bytes, err := os.ReadFile(keyFile)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Can't read CA key file")
-	}
-	block, extra := pem.Decode(bytes)
-	if extra != nil && len(extra) > 0 {
-		log.Fatal().Msgf("Can't parse CA key file. Extra bytes: %s", string(extra))
-	}
+	block := loadPem(log, keyFile)
 	key, err := x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Can't parse CA key file")
 	}
 	return key
+}
+
+func loadPem(log zerolog.Logger, fileName string) *pem.Block {
+	bytes, err := os.ReadFile(fileName)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Can't read file")
+	}
+	block, extra := pem.Decode(bytes)
+	if len(extra) > 0 {
+		log.Fatal().Str("file", fileName).Bytes("extra", extra).Msg("Can't parse")
+	}
+	return block
 }
