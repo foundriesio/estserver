@@ -58,4 +58,7 @@ $ ./bin/estserver \
     -client-cas  client-cas.pem
 ```
 
-TODO - point to fioconfig once implementation is merged
+fioconfig can then be pointed at this service to rotate certificates with:
+```bash
+$ fioconfig renew-cert https://<SERVER_NAME>/.well-known/est
+```
