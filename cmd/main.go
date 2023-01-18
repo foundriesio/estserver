@@ -33,6 +33,7 @@ func main() {
 		{name: "root-cert", help: "EST CA PEM encoded root certificate"},
 	}
 	port := flag.Int("port", 8443, "Port to listen on")
+	clientCas := flag.String("client-cas", "", "PEM encoded list of device CA's to allow. The device must present a certificate signed by a CA in this list or the `ca-cert` to authenticate")
 
 	for _, opt := range required {
 		flag.StringVar(&opt.value, opt.name, "", opt.help)
@@ -64,6 +65,14 @@ func main() {
 	caPool := x509.NewCertPool()
 	caPool.AddCert(rootCert)
 	caPool.AddCert(caCert)
+
+	if clientCas != nil && len(*clientCas) > 0 {
+		pemBytes, err := os.ReadFile(*clientCas)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Unable to load client CAs")
+			caPool.AppendCertsFromPEM(pemBytes)
+		}
+	}
 
 	tlsCerts := est.TlsCerts{
 		Server: &kp,

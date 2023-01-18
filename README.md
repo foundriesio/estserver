@@ -43,6 +43,7 @@ it with:
 fioctl keys ca show --just-device-cas > /tmp/cas.pem
 cat <new-ca.pem> >> /tmp/cas.pem
 fioctl keys ca update /tmp/cas.pem
+fioctl keys ca show --just-device-cas > client-cas.pem
 ```
 
 Then run the server with:
@@ -53,7 +54,8 @@ $ ./bin/estserver \
     -tls-cert <pkidir>/local-tls.pem \
     -tls-key <pkidir>/local-tls.key \
     -ca-cert <pkidir>/local-ca.pem  \
-    -ca-key <pkidir>/local-ca.key
+    -ca-key <pkidir>/local-ca.key \
+    -client-cas  client-cas.pem
 ```
 
 TODO - point to fioconfig once implementation is merged
