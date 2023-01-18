@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/tls"
@@ -114,11 +115,12 @@ func loadKey(log zerolog.Logger, keyFile string) *ecdsa.PrivateKey {
 }
 
 func loadPem(log zerolog.Logger, fileName string) *pem.Block {
-	bytes, err := os.ReadFile(fileName)
+	buf, err := os.ReadFile(fileName)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Can't read file")
 	}
-	block, extra := pem.Decode(bytes)
+	block, extra := pem.Decode(buf)
+	extra = bytes.TrimSpace(extra)
 	if len(extra) > 0 {
 		log.Fatal().Str("file", fileName).Bytes("extra", extra).Msg("Can't parse")
 	}
