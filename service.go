@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	ErrEst = errors.New("Base EstError")
+	ErrEst = errors.New("base EstError")
 )
 
 type EstErrorType int

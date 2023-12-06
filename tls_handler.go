@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	errNoCerts = errors.New("Unable to find certs for this server")
+	errNoCerts = errors.New("unable to find certs for this server")
 )
 
 // TlsCerts represents the Server TLS keypair to advertise and CA roots we trust
@@ -30,7 +30,7 @@ type TlsCertHandler interface {
 // Apply the TlsCertHandler logic to the tlsConfig
 func ApplyTlsCertHandler(tlsConfig *tls.Config, handler TlsCertHandler) error {
 	if tlsConfig.ClientAuth != tls.VerifyClientCertIfGiven {
-		return fmt.Errorf("Invalid TLS ClientAuth value: %d. It must be `tls.VerifyClientCertIfGiven` to fulfill EST requirements", tlsConfig.ClientAuth)
+		return fmt.Errorf("invalid TLS ClientAuth value: %d. It must be `tls.VerifyClientCertIfGiven` to fulfill EST requirements", tlsConfig.ClientAuth)
 	}
 	tlsConfig.GetConfigForClient = func(helloInfo *tls.ClientHelloInfo) (*tls.Config, error) {
 		return getConfigForClient(tlsConfig, handler, helloInfo)
