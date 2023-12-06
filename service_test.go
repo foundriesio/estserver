@@ -71,7 +71,7 @@ func createService(t *testing.T) Service {
 	cert, err := x509.ParseCertificate(der)
 	require.Nil(t, err)
 
-	return Service{cert, cert, key}
+	return Service{cert, cert, key, time.Hour * 24}
 }
 
 func TestService_CA(t *testing.T) {
