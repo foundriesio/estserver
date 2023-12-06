@@ -102,7 +102,7 @@ func TestService_loadCsrBase64(t *testing.T) {
 	content := base64.StdEncoding.EncodeToString([]byte("not a valid CSR"))
 	_, err = Service{}.loadCsr(ctx, []byte(content))
 	require.True(t, errors.Is(err, ErrInvalidCsr))
-	require.True(t, errors.Is(err, EstError))
+	require.True(t, errors.Is(err, ErrEst))
 
 	// valid Csr
 	cn := random.String(12)

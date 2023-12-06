@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	EstError = errors.New("Base EstError")
+	ErrEst = errors.New("Base EstError")
 )
 
 type EstErrorType int
@@ -34,7 +34,7 @@ const (
 )
 
 func (e EstErrorType) Unwrap() error {
-	return EstError
+	return ErrEst
 }
 func (e EstErrorType) Error() string {
 	switch e {
