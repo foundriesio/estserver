@@ -33,7 +33,7 @@ func RegisterEchoHandlers(svcHandler ServiceHandler, e *echo.Echo) {
 		}
 		bytes, err = svc.Enroll(c.Request().Context(), bytes)
 		if err != nil {
-			if errors.Is(err, EstError) {
+			if errors.Is(err, ErrEst) {
 				return c.String(http.StatusBadRequest, err.Error())
 			}
 			return c.String(http.StatusInternalServerError, err.Error())
@@ -52,7 +52,7 @@ func RegisterEchoHandlers(svcHandler ServiceHandler, e *echo.Echo) {
 		peerCerts := c.Request().TLS.PeerCertificates
 		bytes, err = svc.ReEnroll(c.Request().Context(), bytes, peerCerts[0])
 		if err != nil {
-			if errors.Is(err, EstError) {
+			if errors.Is(err, ErrEst) {
 				return c.String(http.StatusBadRequest, err.Error())
 			}
 			return c.String(http.StatusInternalServerError, err.Error())

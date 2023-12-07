@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	EstError = errors.New("Base EstError")
+	ErrEst = errors.New("base EstError")
 )
 
 type EstErrorType int
@@ -34,7 +34,7 @@ const (
 )
 
 func (e EstErrorType) Unwrap() error {
-	return EstError
+	return ErrEst
 }
 func (e EstErrorType) Error() string {
 	switch e {
@@ -96,14 +96,18 @@ type Service struct {
 	// ca and key are the EST7030 keypair used for signing EST7030 requests
 	ca  *x509.Certificate
 	key crypto.Signer
+
+	certDuration time.Duration
 }
 
 // NewService creates an EST7030 API for a Factory
-func NewService(rootCa *x509.Certificate, ca *x509.Certificate, key crypto.Signer) Service {
+func NewService(rootCa *x509.Certificate, ca *x509.Certificate, key crypto.Signer, certDuration time.Duration) Service {
 	return Service{
 		rootCa: rootCa,
 		ca:     ca,
 		key:    key,
+
+		certDuration: certDuration,
 	}
 }
 
@@ -207,7 +211,7 @@ func (s Service) signCsr(ctx context.Context, csr *x509.CertificateRequest) ([]b
 	}
 
 	now := time.Now()
-	notAfter := now.Add(time.Hour * 24 * 365)
+	notAfter := now.Add(s.certDuration)
 	if notAfter.After(s.ca.NotAfter) {
 		log.Warn().Msg("Adjusting default cert expiry")
 		notAfter = s.ca.NotAfter
