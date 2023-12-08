@@ -1,4 +1,4 @@
-#!/bin/sh 
+#!/bin/sh
 ## Helper for creating a TLS keypair for your EST server that is signed by
 ## your factory root CA.
 
@@ -34,9 +34,10 @@ CN = est-server
 OU = $factory
 
 [v3_req]
-keyUsage = keyEncipherment, dataEncipherment
+keyUsage = keyEncipherment, dataEncipherment, keyCertSign
 extendedKeyUsage = serverAuth
 subjectAltName = @alt_names
+basicConstraints = critical, CA:true, pathlen:0
 
 [alt_names]
 DNS.1 = $dnsname
@@ -50,9 +51,10 @@ openssl req -new -config ${conf} -key ${keyfile} -out ${csrfile}
 dns=$(openssl req -text -noout -verify -in $csrfile | grep DNS:)
 echo "signing with dns name: $dns" 1>&2
 cat >${tmpdir}/server.ext <<EOF
-keyUsage=critical, digitalSignature, keyEncipherment, keyAgreement
+keyUsage=critical, digitalSignature, keyEncipherment, keyAgreement, keyCertSign
 extendedKeyUsage=critical, serverAuth
 subjectAltName=$dns
+basicConstraints = critical, CA:true, pathlen:0
 EOF
 openssl x509 -req -days 3650 -in ${csrfile} -CAcreateserial -extfile ${tmpdir}/server.ext \
     -CAkey ${pkidir}/factory_ca.key -CA ${pkidir}/factory_ca.pem > ${certfile}
