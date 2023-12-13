@@ -34,27 +34,32 @@ The simple "standalone" server can be built with:
 
 ## Using
 
-TLS certificates for the server can be generate by using the helper script
-`contrib/mk-tls-keypair.sh`. Your factory's PKI directory  was generated
-with a `create_ca` script. Once a CA is created, you can upload/authorize
-it with:
+First you must create a TLS certificate for this server that your factory
+devices will trust. This can be generated using the helper script
+`contrib/mk-tls-keypair.sh`.
+
+Next you need to create an intermediate "device CA" this service can use to
+sign certificates with. There is a Fioctl helper for this:
 
 ```bash
-fioctl keys ca show --just-device-cas > /tmp/cas.pem
-cat <new-ca.pem> >> /tmp/cas.pem
-fioctl keys ca update /tmp/cas.pem
+fioctl keys ca add-device-ca <path to your PKI dir> --local-ca --local-ca-filename est-ca.pem
+```
+
+Finally, the this server needs a list of intermediate CAs to trust. This can
+be obtained with:
+```bash
 fioctl keys ca show --just-device-cas > client-cas.pem
 ```
 
-Then run the server with:
+Now the server can be run with:
 
 ```bash
 $ ./bin/estserver \
     -root-cert <pkidir>/factory_ca.pem \
-    -tls-cert <pkidir>/local-tls.pem \
-    -tls-key <pkidir>/local-tls.key \
-    -ca-cert <pkidir>/local-ca.pem  \
-    -ca-key <pkidir>/local-ca.key \
+    -tls-cert <pkidir>/local-tls.pem  # cert from mk-tls-keypair above \
+    -tls-key <pkidir>/local-tls.key   # key from mk-tls-keypair above \
+    -ca-cert <pkidir>/est-ca.pem      # cert from fioctl keys ca add-device-ca \
+    -ca-key <pkidir>/est-ca.key       # key from fioctl keys ca add-device-ca \
     -client-cas  client-cas.pem
 ```
 
