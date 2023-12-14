@@ -72,7 +72,9 @@ func main() {
 		pemBytes, err := os.ReadFile(*clientCas)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Unable to load client CAs")
-			caPool.AppendCertsFromPEM(pemBytes)
+		}
+		if ok := caPool.AppendCertsFromPEM(pemBytes); !ok {
+			log.Fatal().Msg("Unable to load client CAs")
 		}
 	}
 
