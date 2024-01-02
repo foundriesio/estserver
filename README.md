@@ -51,6 +51,26 @@ be obtained with:
 fioctl keys ca show --just-device-cas > client-cas.pem
 ```
 
+If you have devices that were registered **before** you configured your
+Factory's PKI, then you'll also need to get a copy of the Foundries default
+"online CA" that was used to sign certificates for those devices. You can
+download this certificate by running:
+```bash
+fioctl get https://api.foundries.io/ota/default-online-ca.pem >> client-cas.pem
+```
+
+You can tell if a device was registered with the default online CA by looking
+at it's certificate under ``/var/sota/client.pem``:
+```bash
+openssl x509 -in ./client.pem -issuer -noout
+
+If the output looks something like:
+```
+issuer=CN=ota-devices-CA
+```
+
+Then the device was created using the default online CA.
+
 Now the server can be run with:
 
 ```bash
