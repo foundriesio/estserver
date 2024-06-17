@@ -91,8 +91,8 @@ func NewStaticServiceHandler(svc Service) ServiceHandler {
 //	4.4 - server side key generation
 //	4.5 - CSR attributes
 type Service struct {
-	// Root CA for a Factory
-	rootCa *x509.Certificate
+	// Root CAs for a Factory
+	rootCa []*x509.Certificate
 	// ca and key are the EST7030 keypair used for signing EST7030 requests
 	ca  *x509.Certificate
 	key crypto.Signer
@@ -101,7 +101,7 @@ type Service struct {
 }
 
 // NewService creates an EST7030 API for a Factory
-func NewService(rootCa *x509.Certificate, ca *x509.Certificate, key crypto.Signer, certDuration time.Duration) Service {
+func NewService(rootCa []*x509.Certificate, ca *x509.Certificate, key crypto.Signer, certDuration time.Duration) Service {
 	return Service{
 		rootCa: rootCa,
 		ca:     ca,
@@ -111,14 +111,21 @@ func NewService(rootCa *x509.Certificate, ca *x509.Certificate, key crypto.Signe
 	}
 }
 
-// CaCerts return the CA certificate as per:
+// CaCerts return the root CA certificates as per:
 // https://www.rfc-editor.org/rfc/rfc7030.html#section-4.1.2
 func (s Service) CaCerts(ctx context.Context) ([]byte, error) {
-	bytes, err := pkcs7.DegenerateCertificate(s.rootCa.Raw)
-	if err != nil {
+	if envelope, err := pkcs7.NewSignedData(nil); err != nil {
 		return nil, err
+	} else {
+		for _, cert := range s.rootCa {
+			envelope.AddCertificate(cert)
+		}
+		if bytes, err := envelope.Finish(); err != nil {
+			return nil, err
+		} else {
+			return []byte(base64.StdEncoding.EncodeToString(bytes)), nil
+		}
 	}
-	return []byte(base64.StdEncoding.EncodeToString(bytes)), nil
 }
 
 // Enroll perform EST7030 enrollment operation as per

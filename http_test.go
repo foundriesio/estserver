@@ -58,7 +58,9 @@ func WithEstServer(t *testing.T, testFunc func(tc testClient)) {
 	srv := httptest.NewUnstartedServer(e)
 
 	pool := x509.NewCertPool()
-	pool.AddCert(svc.rootCa)
+	for _, cert := range svc.rootCa {
+		pool.AddCert(cert)
+	}
 	srv.TLS = &tls.Config{
 		ClientAuth: tls.VerifyClientCertIfGiven,
 		ClientCAs:  pool,

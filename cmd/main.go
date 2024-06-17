@@ -60,7 +60,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Unable to loads TLS keypair")
 	}
 
-	rootCert := loadCert(log, required[4].value)
+	rootCerts := loadCertMulti(log, required[4].value)
 	caCert := loadCert(log, required[3].value)
 	caKey := loadKey(log, required[2].value)
 
@@ -86,7 +86,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Unable to create tls cert handler")
 	}
 
-	svcHandler := est.NewStaticServiceHandler(est.NewService(rootCert, caCert, caKey, *certDuration))
+	svcHandler := est.NewStaticServiceHandler(est.NewService(rootCerts, caCert, caKey, *certDuration))
 
 	e := echo.New()
 	s := http.Server{
@@ -117,6 +117,17 @@ func loadCert(log zerolog.Logger, fileName string) *x509.Certificate {
 	return cert
 }
 
+func loadCertMulti(log zerolog.Logger, fileName string) (lst []*x509.Certificate) {
+	for _, block := range loadPemMulti(log, fileName) {
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Can't parse certificate")
+		}
+		lst = append(lst, cert)
+	}
+	return lst
+}
+
 func loadKey(log zerolog.Logger, keyFile string) *ecdsa.PrivateKey {
 	block := loadPem(log, keyFile)
 	key, err := x509.ParseECPrivateKey(block.Bytes)
@@ -140,4 +151,24 @@ func loadPem(log zerolog.Logger, fileName string) *pem.Block {
 		log.Fatal().Str("file", fileName).Bytes("extra", extra).Msg("Can't parse")
 	}
 	return block
+}
+
+func loadPemMulti(log zerolog.Logger, fileName string) (lst []*pem.Block) {
+	buf, err := os.ReadFile(fileName)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Can't read file")
+	}
+	if len(buf) == 0 {
+		log.Fatal().Str("file", fileName).Bytes("extra", buf).Msg("Can't parse")
+	}
+	var block *pem.Block
+	for len(buf) > 0 {
+		block, buf = pem.Decode(buf)
+		if block == nil {
+			log.Fatal().Str("file", fileName).Bytes("extra", buf).Msg("Can't parse")
+		}
+		lst = append(lst, block)
+		buf = bytes.TrimSpace(buf)
+	}
+	return lst
 }
