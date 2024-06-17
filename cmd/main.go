@@ -133,6 +133,9 @@ func loadPem(log zerolog.Logger, fileName string) *pem.Block {
 		log.Fatal().Err(err).Msg("Can't read file")
 	}
 	block, extra := pem.Decode(buf)
+	if block == nil {
+		log.Fatal().Str("file", fileName).Bytes("extra", buf).Msg("Can't parse")
+	}
 	extra = bytes.TrimSpace(extra)
 	if len(extra) > 0 {
 		log.Fatal().Str("file", fileName).Bytes("extra", extra).Msg("Can't parse")
