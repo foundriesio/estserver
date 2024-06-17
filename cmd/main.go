@@ -65,7 +65,6 @@ func main() {
 	caKey := loadKey(log, required[2].value)
 
 	caPool := x509.NewCertPool()
-	caPool.AddCert(rootCert)
 	caPool.AddCert(caCert)
 
 	if clientCas != nil && len(*clientCas) > 0 {
