@@ -71,7 +71,7 @@ func createService(t *testing.T) Service {
 	cert, err := x509.ParseCertificate(der)
 	require.Nil(t, err)
 
-	return Service{cert, cert, key, time.Hour * 24}
+	return Service{[]*x509.Certificate{cert}, cert, key, time.Hour * 24}
 }
 
 func TestService_CA(t *testing.T) {
@@ -87,7 +87,83 @@ func TestService_CA(t *testing.T) {
 	p7, err := pkcs7.Parse(caBytes)
 	require.Nil(t, err)
 	cert := p7.Certificates[0]
-	require.Equal(t, s.ca.RawSubject, cert.RawSubject)
+	require.Equal(t, s.rootCAs[0].RawSubject, cert.RawSubject)
+}
+
+func TestService_CaCertsWithMultipleRootCAs(t *testing.T) {
+	term1 := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
+	term2 := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	validDays := 398
+	// Create a test service with multiple root CA certificates
+	log := InitLogger("")
+	ctx := CtxWithLog(context.TODO(), log)
+
+	// First root CA
+	rootCAOld := &x509.Certificate{
+		SerialNumber: big.NewInt(101),
+		Subject: pkix.Name{
+			OrganizationalUnit: []string{random.String(10)},
+		},
+		NotBefore:             term1,
+		NotAfter:              term1.AddDate(0, 0, validDays),
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+	}
+
+	// Second root CA
+	rootCANew := &x509.Certificate{
+		SerialNumber: big.NewInt(201),
+		Subject: pkix.Name{
+			OrganizationalUnit: []string{random.String(10)},
+		},
+		NotBefore:             term2,
+		NotAfter:              term2.AddDate(0, 0, validDays),
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+	}
+
+	// Create keys for the certificates
+	rootCAKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+
+	// Old certificate
+	require.Nil(t, err)
+	der1, err := x509.CreateCertificate(rand.Reader, rootCAOld, rootCAOld, &rootCAKey.PublicKey, rootCAKey)
+	require.Nil(t, err)
+	rootCAOldCert, err := x509.ParseCertificate(der1)
+	require.Nil(t, err)
+
+	// New certificate
+	der2, err := x509.CreateCertificate(rand.Reader, rootCANew, rootCANew, &rootCAKey.PublicKey, rootCAKey)
+	require.Nil(t, err)
+	rootCANewCert, err := x509.ParseCertificate(der2)
+	require.Nil(t, err)
+
+	// Create service with multiple root CAs
+	// rootCAs is the list of the root CA certificates
+	service := Service{[]*x509.Certificate{rootCAOldCert, rootCANewCert}, rootCAOldCert, rootCAKey, time.Hour * 24}
+	caBytes, err := service.CaCerts(ctx)
+	require.Nil(t, err)
+
+	// Test that the response is properly base64 encoded
+	caBytes, err = base64.StdEncoding.DecodeString(string(caBytes))
+	require.Nil(t, err)
+
+	// Test that the response is correctly parsed as PKCS7
+	p7, err := pkcs7.Parse(caBytes)
+	require.Nil(t, err)
+
+	// Test that the response contains the correct root CA certificates
+	// Test the response is correctly parsed
+	require.Equal(t, 2, len(p7.Certificates))
+
+	require.Equal(t, big.NewInt(101), p7.Certificates[0].SerialNumber)
+	require.Equal(t, big.NewInt(201), p7.Certificates[1].SerialNumber)
 }
 
 func TestService_loadCsrBase64(t *testing.T) {

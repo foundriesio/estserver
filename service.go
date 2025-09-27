@@ -63,6 +63,19 @@ var (
 	asn1TlsWebClientAuth = []byte{48, 10, 6, 8, 43, 6, 1, 5, 5, 7, 3, 2}
 )
 
+type contentInfo struct {
+	ContentType asn1.ObjectIdentifier
+	Content     asn1.RawValue `asn1:",tag:0,optional"`
+}
+
+type signedData struct {
+	Version                    int
+	DigestAlgorithmIdentifiers []pkix.AlgorithmIdentifier `asn1:"set"`
+	ContentInfo                contentInfo
+	Certificates               []asn1.RawValue `asn1:"tag:0,optional,set"`
+	SignerInfos                []interface{}   `asn1:"set"`
+}
+
 type ServiceHandler interface {
 	GetService(ctx context.Context, serverName string) (Service, error)
 }
@@ -91,8 +104,8 @@ func NewStaticServiceHandler(svc Service) ServiceHandler {
 //	4.4 - server side key generation
 //	4.5 - CSR attributes
 type Service struct {
-	// Root CA for a Factory
-	rootCa *x509.Certificate
+	// Root CAs for a Factory
+	rootCAs []*x509.Certificate
 	// ca and key are the EST7030 keypair used for signing EST7030 requests
 	ca  *x509.Certificate
 	key crypto.Signer
@@ -101,24 +114,55 @@ type Service struct {
 }
 
 // NewService creates an EST7030 API for a Factory
-func NewService(rootCa *x509.Certificate, ca *x509.Certificate, key crypto.Signer, certDuration time.Duration) Service {
+func NewService(rootCAs []*x509.Certificate, ca *x509.Certificate, key crypto.Signer, certDuration time.Duration) Service {
 	return Service{
-		rootCa: rootCa,
-		ca:     ca,
-		key:    key,
+		rootCAs: rootCAs,
+		ca:      ca,
+		key:     key,
 
 		certDuration: certDuration,
 	}
 }
 
-// CaCerts return the CA certificate as per:
+// CaCerts return the CA certificates as per:
 // https://www.rfc-editor.org/rfc/rfc7030.html#section-4.1.2
 func (s Service) CaCerts(ctx context.Context) ([]byte, error) {
-	bytes, err := pkcs7.DegenerateCertificate(s.rootCa.Raw)
+	oidSignedData := asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
+	oidData := asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
+
+	ci := contentInfo{
+		ContentType: oidData,
+		Content:     asn1.RawValue{Tag: 0, IsCompound: false, Bytes: nil},
+	}
+
+	certs := make([]asn1.RawValue, len(s.rootCAs))
+	for i, cert := range s.rootCAs {
+		certs[i] = asn1.RawValue{FullBytes: cert.Raw}
+	}
+
+	sd := signedData{
+		Version:                    1,
+		DigestAlgorithmIdentifiers: []pkix.AlgorithmIdentifier{},
+		ContentInfo:                ci,
+		Certificates:               certs,
+		SignerInfos:                []interface{}{},
+	}
+
+	sdDER, err := asn1.Marshal(sd)
 	if err != nil {
 		return nil, err
 	}
-	return []byte(base64.StdEncoding.EncodeToString(bytes)), nil
+
+	wrapper := contentInfo{
+		ContentType: oidSignedData,
+		Content:     asn1.RawValue{Class: 2, Tag: 0, IsCompound: true, Bytes: sdDER},
+	}
+	der, err := asn1.Marshal(wrapper)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(base64.StdEncoding.EncodeToString(der)), nil
 }
 
 // Enroll perform EST7030 enrollment operation as per

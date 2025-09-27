@@ -58,7 +58,7 @@ func WithEstServer(t *testing.T, testFunc func(tc testClient)) {
 	srv := httptest.NewUnstartedServer(e)
 
 	pool := x509.NewCertPool()
-	pool.AddCert(svc.rootCa)
+	pool.AddCert(svc.rootCAs[0])
 	srv.TLS = &tls.Config{
 		ClientAuth: tls.VerifyClientCertIfGiven,
 		ClientCAs:  pool,
@@ -84,7 +84,7 @@ func TestCACertificatesRequest(t *testing.T) {
 		require.Nil(t, err)
 		p7, err := pkcs7.Parse(buf)
 		require.Nil(t, err)
-		require.Equal(t, tc.svc.ca, p7.Certificates[0])
+		require.Equal(t, tc.svc.rootCAs[0], p7.Certificates[0])
 	})
 }
 

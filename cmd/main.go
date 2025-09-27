@@ -60,12 +60,14 @@ func main() {
 		log.Fatal().Err(err).Msg("Unable to loads TLS keypair")
 	}
 
-	rootCert := loadCert(log, required[4].value)
+	rootCerts := loadCerts(log, required[4].value)
 	caCert := loadCert(log, required[3].value)
 	caKey := loadKey(log, required[2].value)
 
 	caPool := x509.NewCertPool()
-	caPool.AddCert(rootCert)
+	for _, cert := range rootCerts {
+		caPool.AddCert(cert)
+	}
 	caPool.AddCert(caCert)
 
 	if clientCas != nil && len(*clientCas) > 0 {
@@ -87,7 +89,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Unable to create tls cert handler")
 	}
 
-	svcHandler := est.NewStaticServiceHandler(est.NewService(rootCert, caCert, caKey, *certDuration))
+	svcHandler := est.NewStaticServiceHandler(est.NewService(rootCerts, caCert, caKey, *certDuration))
 
 	e := echo.New()
 	s := http.Server{
@@ -107,6 +109,32 @@ func main() {
 	if err = est.RunGracefully(ctx, &s, e); err != nil {
 		log.Fatal().Err(err).Msg("Unable to run server")
 	}
+}
+
+func loadCerts(log zerolog.Logger, fileName string) []*x509.Certificate {
+	buf, err := os.ReadFile(fileName)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Can't read file")
+	}
+	var certs []*x509.Certificate
+	for {
+		block, rest := pem.Decode(buf)
+		if block == nil {
+			break
+		}
+		if block.Type == "CERTIFICATE" {
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Can't parse certificate")
+			}
+			certs = append(certs, cert)
+		}
+		buf = rest
+	}
+	if len(certs) == 0 {
+		log.Fatal().Msg("No certificates found in file")
+	}
+	return certs
 }
 
 func loadCert(log zerolog.Logger, fileName string) *x509.Certificate {
