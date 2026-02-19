@@ -19,7 +19,7 @@ As this project's primary aim is handling device certificate renewal, optional
 features of the RFC have been omitted including:
 
 * 4.3 - CMC
-* 4.4 - Server side key generation
+* 4.4 - server side key generation is supported partially, without the key encryption.
 * 4.5 - CSR attributes
 
 ## Contributing

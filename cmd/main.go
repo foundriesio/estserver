@@ -36,6 +36,7 @@ func main() {
 	port := flag.Int("port", 8443, "Port to listen on")
 	certDuration := flag.Duration("cert-duration", time.Hour*24*365*3, "How long new certs should be valid for. e.g. such as '1.5h' or '2h45m'. 3 years is default")
 	clientCas := flag.String("client-cas", "", "PEM encoded list of device CA's to allow. The device must present a certificate signed by a CA in this list or the `ca-cert` to authenticate")
+	serverKeygen := flag.Bool("serverkeygen", false, "Whether server should enable server-side keygen (default disabled)")
 
 	for _, opt := range required {
 		flag.StringVar(&opt.value, opt.name, "", opt.help)
@@ -86,7 +87,7 @@ func main() {
 		log.Fatal().Err(err).Msg("Unable to create tls cert handler")
 	}
 
-	svcHandler := est.NewStaticServiceHandler(est.NewService(rootCerts, caCert, caKey, *certDuration))
+	svcHandler := est.NewStaticServiceHandler(est.NewService(rootCerts, caCert, caKey, *certDuration, *serverKeygen))
 
 	e := echo.New()
 	s := http.Server{

@@ -7,6 +7,8 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -212,6 +214,58 @@ func TestSimpleReEnroll(t *testing.T) {
 
 		rc, data = tc.POST(t, "/.well-known/est/simplereenroll", csr, kp, checkHeaderValue("content-type", mimeTypePKCS7CertsOnly))
 		require.Equal(t, 200, rc, string(data))
+	})
+}
+
+func TestServerKeygen(t *testing.T) {
+	WithEstServer(t, func(tc testClient) {
+		cn := random.String(10)
+		kp := tc.svc.createTlsKP(t, tc.ctx, cn)
+		rc, data := tc.POST(t, "/.well-known/est/serverkeygen", []byte{}, kp)
+		require.Equal(t, 400, rc, string(data))
+		require.Equal(t, "The CSR could not be decoded: asn1: syntax error: sequence truncated", string(data))
+
+		var boundary string
+		var extract responseChecker = func(t *testing.T, res *http.Response) {
+			mediaType, params, err := mime.ParseMediaType(res.Header.Get("Content-Type"))
+			boundary = params["boundary"]
+			require.Equal(t, "multipart/mixed", mediaType)
+			require.Nil(t, err)
+		} // ugly but boundary is in header but response is already read by POST()
+
+		_, csr := createB64CsrDer(t, cn)
+		rc, buf := tc.POST(t, "/.well-known/est/serverkeygen", csr, kp, extract)
+		require.Equal(t, 200, rc, buf)
+
+		// multipart structure
+		mpr := multipart.NewReader(bytes.NewBuffer(buf), boundary)
+
+		// certificate part
+		part, err := mpr.NextPart()
+		require.Nil(t, err, string(data))
+		require.Equal(t, "application/pkcs7-mime; smime-type=certs-only", part.Header.Get("Content-Type"), "Wrong Content type for first part")
+		bytebuf, err := io.ReadAll(part)
+		require.Nil(t, err)
+		cert, err := base64.StdEncoding.DecodeString(string(bytebuf))
+		require.Nil(t, err)
+		p7c, err := pkcs7.Parse(cert)
+		require.Nil(t, err)
+		require.Equal(t, 1, len(p7c.Certificates), "wrong amout of certs")
+
+		// private key part
+		part, err = mpr.NextPart()
+		require.Nil(t, err, string(data))
+		require.Equal(t, "application/pkcs8", part.Header.Get("Content-Type"), "Wrong Content type for first part")
+		bytebuf, err = io.ReadAll(part)
+		require.Nil(t, err)
+		keyb, err := base64.StdEncoding.DecodeString(string(bytebuf))
+		require.Nil(t, err)
+		_, err = x509.ParsePKCS8PrivateKey(keyb)
+		require.Nil(t, err)
+
+		// test rejecting when service not allow serverkeygen
+		rc, buf = tc.POST(t, "/.well-known/est/serverkeygen", csr, kp, extract)
+		require.Equal(t, 200, rc, buf)
 	})
 }
 

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -88,7 +90,7 @@ func NewStaticServiceHandler(svc Service) ServiceHandler {
 // Optional APIs are not implemented including:
 //
 //	4.3 - cmc
-//	4.4 - server side key generation
+//	4.4 - server side key generation is supported partially, without the key encryption.
 //	4.5 - CSR attributes
 type Service struct {
 	// Root CAs for a Factory
@@ -97,17 +99,19 @@ type Service struct {
 	ca  *x509.Certificate
 	key crypto.Signer
 
-	certDuration time.Duration
+	allowServerKeygen bool
+	certDuration      time.Duration
 }
 
 // NewService creates an EST7030 API for a Factory
-func NewService(rootCa []*x509.Certificate, ca *x509.Certificate, key crypto.Signer, certDuration time.Duration) Service {
+func NewService(rootCa []*x509.Certificate, ca *x509.Certificate, key crypto.Signer, certDuration time.Duration, allowServerKeygen bool) Service {
 	return Service{
 		rootCa: rootCa,
 		ca:     ca,
 		key:    key,
 
-		certDuration: certDuration,
+		allowServerKeygen: allowServerKeygen,
+		certDuration:      certDuration,
 	}
 }
 
@@ -180,6 +184,50 @@ func (s Service) ReEnroll(ctx context.Context, csrBytes []byte, curCert *x509.Ce
 	//   in the CSR to request that these fields be changed in the new certificate."
 	// Parts of the subject like dn,ou, and businessCategory=production *can't* be altered
 	return s.signCsr(ctx, csr)
+}
+
+// ServerKeygen performs EST7030 enrollment operation with server generated key as per
+// https://www.rfc-editor.org/rfc/rfc7030.html#section-4.1.1
+// Errors can be generic errors or of the type EstError.
+// server won't use additional encryption independent from TLS.
+func (s Service) ServerKeygen(ctx context.Context, csrBytes []byte, curCert *x509.Certificate) ([]byte, []byte, error) {
+	if !s.allowServerKeygen {
+		return nil, nil, fmt.Errorf("server not allow serverside keygen")
+	}
+	originalCsr, err := s.loadCsr(ctx, csrBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	var newCertKey crypto.Signer
+	switch capub := s.ca.PublicKey.(type) {
+	case *rsa.PublicKey:
+		newCertKey, err = rsa.GenerateKey(rand.Reader, 2048)
+	case *ecdsa.PublicKey:
+		newCertKey, err = ecdsa.GenerateKey(capub.Curve, rand.Reader)
+	default:
+		return nil, nil, fmt.Errorf("nullkeytype")
+	}
+
+	if err != nil {
+		return nil, nil, err
+	}
+	// re-key CSR, only add thing signcsr will read
+	// make new variable because go didn't like modifiing Raw fields after creation
+	// no need to actually create csr bytes, just fill needed for s.signer
+	newCsrTemplate := x509.CertificateRequest{
+		SignatureAlgorithm: s.ca.SignatureAlgorithm,
+		RawSubject:         originalCsr.RawSubject,
+		PublicKey:          newCertKey.Public(),
+		Extensions:         originalCsr.Extensions,
+	}
+	newCertKeyByte, _ := x509.MarshalPKCS8PrivateKey(newCertKey)
+
+	cert, err := s.signCsr(ctx, &newCsrTemplate)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cert, []byte(base64.StdEncoding.EncodeToString(newCertKeyByte)), nil
 }
 
 // loadCsr parses the certifcate signing request based on rules of
