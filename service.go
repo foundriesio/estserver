@@ -211,9 +211,8 @@ func (s Service) ServerKeygen(ctx context.Context, csrBytes []byte, curCert *x50
 	if err != nil {
 		return nil, nil, err
 	}
-	// re-key CSR, only add thing signcsr will read
-	// make new variable because go didn't like modifiing Raw fields after creation
-	// no need to actually create csr bytes, just fill needed for s.signer
+	// Re-key CSR, only add things that signCsr needs.
+	// Make a new variable because Golang does not support modifying the CSR object fields directly.
 	newCsrTemplate := x509.CertificateRequest{
 		SignatureAlgorithm: s.ca.SignatureAlgorithm,
 		RawSubject:         originalCsr.RawSubject,
